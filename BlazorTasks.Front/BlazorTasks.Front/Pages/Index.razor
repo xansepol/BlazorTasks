@@ -1,0 +1,105 @@
+﻿@page "/"
+@using BlazorTasks.Core.Models;
+@inject HttpClient client;
+@inject IJSRuntime jsRun;
+
+<PageTitle>Lista de Tarefas</PageTitle>
+
+<h1>Lista de Tarefas</h1>
+
+<div class="input-group mb-3">
+    <input class="form-control" type="text" placeholder="Descrição da tarefa" @bind=description  @onkeyup=EnterDescriptionEvent />
+    <button class="btn btn-dark" type="button" @onclick=AddNewTask><span class="oi oi-plus"></span></button>
+</div>
+@if(_tasks is not null)
+{
+    <table class="table table-sm table-striped">
+        <thead>
+            <tr>
+                <th></th>
+                <th>Descrição</th>
+                <th>Data de criação</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var task in _tasks)
+            {
+                <tr>
+                    <td><input class="form-check-input" type="checkbox" checked="@task.Done" @onchange="@(e => UpdateTasks(task))"/></td>
+                    <td>@task.Description</td>
+                    <td>@task.EntryDate.AddHours(-3).ToString("dd/MM/yyyy HH:mm:ss")</td>
+                    <td><button type="button" class="btn-sm btn-danger" @onclick="@(e => DeleteTask(task.Id))"><span class="oi oi-delete"></span></button></td>
+                </tr>   
+            }
+        </tbody>
+    </table>
+}
+
+
+@code{
+    private TaskModel[]? _tasks = null;
+    string description = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadTasks();
+    }
+
+    private async Task LoadTasks()
+    {
+        _tasks = await client.GetFromJsonAsync<TaskModel[]>("api/Task");
+    }
+
+    async Task AddNewTask()
+    {
+        if (!String.IsNullOrWhiteSpace(description))
+        {
+            await client.PutAsJsonAsync<CreateTaskDTO>("api/Task", new CreateTaskDTO()
+            {
+                Description = description
+            });
+            await LoadTasks();
+            description = "";
+        }
+    }
+
+    async Task DeleteTask(Guid id)
+    {
+        await client.DeleteAsync($"api/Task/id/{id}");
+        await LoadTasks();
+    }
+
+    async Task UpdateTasks(TaskModel model)
+    {
+        if (model.Done)
+            model.Done = false;
+        else
+            model.Done = true;
+
+        await client.PostAsJsonAsync<UpDateTaskDTO>("api/Task", new()
+        {
+            Id = model.Id,
+            Description = model.Description,
+            Done = model.Done
+        });        
+    }
+
+    async Task EnterDescriptionEvent(KeyboardEventArgs e)
+    {
+        if (e.Code == "Enter" || e.Code == "NumpadEnter")
+            await AddNewTask();
+    }
+
+    private class CreateTaskDTO
+    {
+        public string Description { get; set; } = "";
+    }
+
+    private class UpDateTaskDTO
+    {
+        public Guid Id { get; set; }
+        public string? Description { get; set; }
+        public bool Done { get; set; }
+    }
+}
